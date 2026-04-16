@@ -17,7 +17,7 @@ SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL")
 
 if not SQLALCHEMY_DATABASE_URL:
     # Dòng này để bạn vẫn chạy được local nếu chưa cài biến môi trường
-    SQLALCHEMY_DATABASE_URL = "postgresql://postgres:acd5Y63xNzayPGAI@db.cdvsfvzoiojbblluifar.supabase.co:5432/postgres"
+    SQLALCHEMY_DATABASE_URL = "NEXT_PUBLIC_SUPABASE_URL=https://cdvsfvzoiojbblluifar.supabase.co"
 
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL, 
