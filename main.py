@@ -29,20 +29,66 @@ engine = create_engine(
 # 2. LOGIC XỬ LÝ (PARSER)
 # =============================================================================
 def parse_exam_text(text: str):
-    question_blocks = re.split(r'(?=Câu\s*\d+[:.])', text)
+    # --- BƯỚC 1: TÁCH PHẦN ĐÁP ÁN Ở CUỐI ĐỀ ---
+    # Tìm vị trí của chữ "ĐÁP ÁN" hoặc "HƯỚNG DẪN GIẢI"
+    answer_key_map = {}
+    split_pattern = re.compile(r'(ĐÁP ÁN|HƯỚNG DẪN GIẢI)', re.IGNORECASE)
+    parts = split_pattern.split(text)
+    
+    content_text = parts[0] # Phần nội dung câu hỏi
+    remaining_text = "".join(parts[1:]) # Phần đáp án và giải chi tiết
+
+    # Trích xuất tất cả các cặp số.chữ (Ví dụ: 1. B, 2.B)
+    # Regex này tìm: [Số] [dấu chấm hoặc khoảng trắng] [Chữ cái A-D]
+    ans_matches = re.findall(r'(\d+)\s*[\.\s]\s*([A-D])', remaining_text)
+    for q_num, ans_char in ans_matches:
+        answer_key_map[q_num] = ans_char
+
+    # --- BƯỚC 2: TÁCH CÁC CÂU HỎI ---
+    # Tách dựa trên cụm "Câu X." hoặc "Câu X:"
+    question_blocks = re.split(r'(?=Câu\s*\d+[:.])', content_text)
     parsed_data = []
+
     for block in question_blocks:
-        if not block.strip(): continue
-        lines = block.strip().split('\n')
-        content = re.sub(r'^Câu\s*\d+[:.]\s*', '', lines[0])
+        block = block.strip()
+        if not block: continue
+
+        # Lấy số câu để đối chiếu với bảng đáp án
+        num_match = re.search(r'Câu\s*(\d+)', block)
+        if not num_match: continue
+        q_num = num_match.group(1)
+
+        lines = block.split('\n')
+        # Nội dung câu hỏi: bỏ phần "Câu X."
+        content = re.sub(r'^Câu\s*\d+[:.]\s*', '', lines[0]).strip()
+
+        # Tìm các lựa chọn A, B, C, D
         options = []
-        for line in lines[1:]:
-            match = re.match(r'^([A-D])\.\s*(.*)', line.strip())
-            if match: options.append({"label": match.group(1), "text": match.group(2)})
-        answer_match = re.search(r'Đáp án:\s*([A-D])', block)
-        correct_answer = answer_match.group(1) if answer_match else None
-        parsed_data.append({"content": content, "options": options, "correct_answer": correct_answer})
+        # Regex tìm A. nội dung, B. nội dung... (xử lý cả khi nằm cùng 1 dòng)
+        opt_matches = re.findall(r'([A-D])\.\s*([^A-D\n\r]*)', block)
+        for label, opt_text in opt_matches:
+            options.append({"label": label, "text": opt_text.strip()})
+
+        # Xác định loại câu hỏi
+        if options:
+            # CÂU TRẮC NGHIỆM: Lấy đáp án từ bảng map đã trích xuất ở Bước 1
+            correct_answer = answer_key_map.get(q_num)
+            q_type = "MULTIPLE_CHOICE"
+        else:
+            # CÂU TỰ LUẬN: Không có options
+            correct_answer = None 
+            q_type = "ESSAY"
+
+        parsed_data.append({
+            "number": q_num,
+            "content": content,
+            "options": options,
+            "correct_answer": correct_answer,
+            "type": q_type
+        })
+
     return parsed_data
+
 
 # =============================================================================
 # 3. API ENDPOINTS
